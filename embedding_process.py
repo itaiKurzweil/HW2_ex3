@@ -1,40 +1,40 @@
-import pandas as pd
 import openai
 import pickle
+import pandas as pd
+import os
 
 # Set your OpenAI API key
-openai.api_key = "your_openai_api_key"
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise ValueError("OpenAI API key not found in environment variables.")
+openai.api_key = api_key
 
-def load_and_process_csv(file_path):
-    """Load CSV and process titles and descriptions."""
-    tv_shows_data = pd.read_csv(file_path)
-    tv_shows = tv_shows_data[["Title", "Description"]]
-    return tv_shows
+# Load the CSV file
+file_path = r"C:\Users\itaik\OneDrive\שולחן העבודה\Year c\AI dev\HW2\EX3\imdb_tvshows - imdb_tvshows.csv"
+tv_shows_data = pd.read_csv(file_path)
+
+# Create a dictionary to store embeddings
+embeddings = {}
 
 def generate_embeddings(description):
-    """Generate embeddings for a given description."""
+    """Generate embeddings using the new OpenAI API."""
     response = openai.Embedding.create(
-        input=description,
-        model="text-embedding-ada-002"
+        model="text-embedding-ada-002",
+        input=description
     )
     return response["data"][0]["embedding"]
 
-def save_embeddings(tv_shows, output_file):
-    """Generate and save embeddings for TV shows."""
-    embeddings = {}
-    for _, row in tv_shows.iterrows():
-        title = row["Title"]
-        description = row["Description"]
-        embeddings[title] = generate_embeddings(description)
-    with open(output_file, "wb") as file:
-        pickle.dump(embeddings, file)
-    print(f"Embeddings saved to {output_file}!")
 
-if __name__ == "__main__":
-    # Path to the CSV file
-    file_path = r"C:\Users\itaik\OneDrive\שולחן העבודה\Year c\AI dev\HW2\EX3\imdb_tvshows - imdb_tvshows.csv"
-    output_file = "tv_show_embeddings.pkl"
+# Generate embeddings for each show
+for _, row in tv_shows_data.iterrows():
+    title = row["Title"]
+    description = row["Description"]
+    print(f"Generating embedding for: {title}")
+    embeddings[title] = generate_embeddings(description)
 
-    # Process CSV and generate embeddings
-    tv_shows = load_and_process_csv(file_path)
-    save_embeddings(tv_shows, output_file)
+# Save embeddings to a pickle file
+output_file = "tv_show_embeddings.pkl"
+with open(output_file, "wb") as file:
+    pickle.dump(embeddings, file)
+
+print(f"Embeddings saved to {output_file}")
