@@ -18,7 +18,7 @@ def ask_gpt_4_mini(prompt):
         openai.api_key = os.getenv("OPENAI_API_KEY")
 
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are an assistant helping to create custom TV shows."},
                 {"role": "user", "content": prompt}
@@ -33,39 +33,24 @@ def ask_gpt_4_mini(prompt):
         return f"An error occurred: {str(e)}"
 
 
-def generate_custom_shows(liked_shows, recommended_shows):
+def generate_custom_shows(shows):
     """Generate two custom shows using OpenAI GPT."""
     # Construct prompts for the custom shows
     prompt = (
-        f"Create two unique TV shows. The first is based on these liked shows: {', '.join(liked_shows)}. "
-        f"The second is based on these recommended shows: {', '.join(recommended_shows)}. "
-        "For each, provide a name and a brief description."
+        f"Generate a new TV show.\n"
+        f"The show should include 'Name' and 'Description'.\n"
+        f"The show should be based on the following TV shows: {shows}.\n"
     )
 
     # Call GPT-4 Mini for the response
     response = ask_gpt_4_mini(prompt)
 
-    # Parse response into two shows
-    shows = response.split("\n\n")
-    if len(shows) >= 2:
-        show1 = shows[0].split("\n", 1)
-        show2 = shows[1].split("\n", 1)
-
-        return {
-            "show1": {
-                "name": show1[0].strip() if len(show1) > 0 else "Unknown Show",
-                "description": show1[1].strip() if len(show1) > 1 else "No description available."
-            },
-            "show2": {
-                "name": show2[0].strip() if len(show2) > 0 else "Unknown Show",
-                "description": show2[1].strip() if len(show2) > 1 else "No description available."
-            }
-        }
-    else:
-        return {
-            "show1": {"name": "Error in GPT Response", "description": "Could not parse show 1."},
-            "show2": {"name": "Error in GPT Response", "description": "Could not parse show 2."}
-        }
+    # Parse the response to extract name and description
+    try:
+        showname, showdescription = response.split(',', 1)
+        return showname.strip(), showdescription.strip()
+    except ValueError:
+        return "Error in response", "Response could not be parsed"
 
 if __name__ == "__main__":
     suggester = ShowSuggesterAI()
@@ -107,15 +92,16 @@ if __name__ == "__main__":
                 print(f"{show} ({similarity}%)")
 
             # Generate two custom shows using OpenAI API
-            custom_shows = generate_custom_shows(liked_shows, [rec[0] for rec in recommendations])
-
-            # Display the custom shows
-            print("\nI have also created just for you two shows which I think you would love.")
-            print(f"Show #1 is based on the fact that you loved the input shows that you gave me.")
-            print(f"Its name is {custom_shows['show1']['name']} and it is about {custom_shows['show1']['description']}.")
-            print(f"Show #2 is based on the shows that I recommended for you.")
-            print(f"Its name is {custom_shows['show2']['name']} and it is about {custom_shows['show2']['description']}.")
-            print("\nHere are also the 2 TV show ads. Hope you like them!")
+            print("I have also created just for you two shows which I think you would love.")
+            for i in range(2):
+                custom_show_name, custom_show_description = generate_custom_shows(liked_shows if i == 0 else [rec[0] for rec in recommendations])
+                print(f"\nShow #{i + 1}:")
+                if i==0:
+                    print("is based on the fact that you loved the input shows that you gave me.")
+                else:
+                    print("is based on the shows that I recommended for you.")
+                print(f"{custom_show_name}")
+                print(f" {custom_show_description}")
 
             break
         else:
