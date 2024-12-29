@@ -1,41 +1,35 @@
+from annoy import AnnoyIndex
 import pickle
-from thefuzz import process
-from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+from thefuzz import process
 
 class ShowSuggesterAI:
-    def __init__(self):
-        """Initialize the ShowSuggesterAI with necessary attributes."""
+    def __init__(self, embedding_dim=1536):
+        """Initialize with Annoy index and embedding dimension."""
+        self.embedding_dim = embedding_dim
         self.tv_show_embeddings = {}
+        self.index = AnnoyIndex(self.embedding_dim, 'angular')
+        self.show_id_map = {}  # Maps Annoy index IDs to show names
 
     def load_embeddings(self, filepath):
-        """Load embeddings from a pickle file."""
+        """Load embeddings from a pickle file and build the Annoy index."""
         try:
             with open(filepath, 'rb') as file:
                 self.tv_show_embeddings = pickle.load(file)
+
+            # Populate the Annoy index
+            for i, (show, embedding) in enumerate(self.tv_show_embeddings.items()):
+                self.index.add_item(i, embedding)
+                self.show_id_map[i] = show
+
+            self.index.build(10)  # Build the index with 10 trees
         except FileNotFoundError:
             raise FileNotFoundError(f"File at {filepath} not found.")
         except Exception as e:
             raise Exception(f"An error occurred while loading embeddings: {e}")
 
-    def save_embeddings(self, filepath):
-        """Save embeddings to a pickle file."""
-        try:
-            with open(filepath, 'wb') as file:
-                pickle.dump(self.tv_show_embeddings, file)
-        except Exception as e:
-            raise Exception(f"An error occurred while saving embeddings: {e}")
-
-    def match_shows(self, input_shows):
-        """Match user-inputted shows to the closest shows in the dataset."""
-        matched_shows = {}
-        for show in input_shows:
-            best_match, score = process.extractOne(show, self.tv_show_embeddings.keys())
-            matched_shows[show] = best_match if score > 80 else None
-        return matched_shows
-
-    def recommend_shows(self, liked_shows):
-        """Generate recommendations based on liked shows."""
+    def recommend_shows(self, liked_shows, top_k=7):
+        """Generate recommendations based on liked shows using Annoy."""
         if not liked_shows:
             raise ValueError("Liked shows list cannot be empty.")
 
@@ -45,13 +39,22 @@ class ShowSuggesterAI:
         if not liked_vectors:
             raise ValueError("None of the liked shows were found in the dataset.")
 
-        avg_vector = np.mean(liked_vectors, axis=0).reshape(1, -1)
-        recommendations = []
+        # Calculate the average vector
+        avg_vector = np.mean(liked_vectors, axis=0)
 
-        for show, embedding in self.tv_show_embeddings.items():
-            if show not in liked_shows:
-                similarity = cosine_similarity(avg_vector, np.array(embedding).reshape(1, -1))[0][0]
-                recommendations.append((show, similarity))
+        # Find the nearest neighbors
+        indices = self.index.get_nns_by_vector(avg_vector, top_k, include_distances=True)
+        recommendations = [
+            (self.show_id_map[idx], round((1 - dist) * 100, 2))
+            for idx, dist in zip(*indices)
+            if self.show_id_map[idx] not in liked_shows
+        ]
+        return recommendations
 
-        recommendations = sorted(recommendations, key=lambda x: x[1], reverse=True)[:5]
-        return [(show, round(similarity * 100, 2)) for show, similarity in recommendations]
+    def match_shows(self, input_shows):
+        """Match user-inputted shows to the closest shows in the dataset."""
+        matched_shows = {}
+        for show in input_shows:
+            best_match, score = process.extractOne(show, self.tv_show_embeddings.keys())
+            matched_shows[show] = best_match if score > 80 else None
+        return matched_shows
