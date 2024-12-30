@@ -43,13 +43,14 @@ class ShowSuggesterAI:
         avg_vector = np.mean(liked_vectors, axis=0)
 
         # Find the nearest neighbors
-        indices = self.index.get_nns_by_vector(avg_vector, top_k, include_distances=True)
+        indices, distances = self.index.get_nns_by_vector(avg_vector, top_k, include_distances=True)
         recommendations = [
-            (self.show_id_map[idx], round((1 - dist) * 100, 2))
-            for idx, dist in zip(*indices)
+            (self.show_id_map[idx], round((1 - (dist / 2)) * 100, 2))  # Adjust percentage calculation
+            for idx, dist in zip(indices, distances)
             if self.show_id_map[idx] not in liked_shows
         ]
         return recommendations
+
 
     def match_shows(self, input_shows):
         """Match user-inputted shows to the closest shows in the dataset."""
