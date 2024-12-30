@@ -18,7 +18,7 @@ def ask_gpt_4_mini(prompt):
         openai.api_key = os.getenv("OPENAI_API_KEY")
 
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are an assistant helping to create custom TV shows."},
                 {"role": "user", "content": prompt}
@@ -37,9 +37,9 @@ def generate_custom_shows(shows):
     """Generate two custom shows using OpenAI GPT."""
     # Construct prompts for the custom shows
     prompt = (
-        f"Generate a new TV show.\n"
-        f"The show should include 'Name' and 'Description'.\n"
-        f"The show should be based on the following TV shows: {shows}.\n"
+        f"Generate a new TV show./n"
+        f"The show should include 'Name' and 'Description'./n"
+        f"The show should be based on the following TV shows: {shows}./n"
     )
 
     # Call GPT-4 Mini for the response
