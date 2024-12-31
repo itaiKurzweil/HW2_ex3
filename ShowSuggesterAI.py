@@ -1,6 +1,10 @@
 from annoy import AnnoyIndex
 import pickle
 import numpy as np
+import requests
+from PIL import Image
+import os
+import time
 from thefuzz import process
 
 class ShowSuggesterAI:
@@ -51,7 +55,6 @@ class ShowSuggesterAI:
         ]
         return recommendations
 
-
     def match_shows(self, input_shows):
         """Match user-inputted shows to the closest shows in the dataset."""
         matched_shows = {}
@@ -59,3 +62,71 @@ class ShowSuggesterAI:
             best_match, score = process.extractOne(show, self.tv_show_embeddings.keys())
             matched_shows[show] = best_match if score > 80 else None
         return matched_shows
+
+    def generate_lightx_image(self, prompt, output_filename):
+        """
+        Generate an image using the LightX API based on the given prompt.
+
+        Parameters:
+            prompt (str): The text prompt describing the image to generate.
+            output_filename (str): The filename to save the generated image.
+
+        Returns:
+            str: The local path to the saved image or None if the generation failed.
+        """
+        base_url = "https://api.lightxeditor.com/external/api/v1/text2image"
+        status_url = "https://api.lightxeditor.com/external/api/v1/order-status"
+        api_key = os.getenv("Lightxapikey")
+
+        if not api_key:
+            raise ValueError("LightX API key not set. Please define Lightxapikey as an environment variable.")
+
+        try:
+            # Initiate image generation
+            payload = {"textPrompt": prompt}
+            response = requests.post(
+                base_url,
+                json=payload,
+                headers={
+                    "x-api-key": api_key,
+                    "Content-Type": "application/json"
+                }
+            )
+            response.raise_for_status()
+            response_data = response.json()
+
+            order_id = response_data.get("body", {}).get("orderId")
+            if not order_id:
+                raise ValueError("Failed to retrieve order ID from LightX API response.")
+
+            # Poll for order status
+            for attempt in range(5):
+                status_response = requests.post(
+                    status_url,
+                    json={"orderId": order_id},
+                    headers={
+                        "x-api-key": api_key,
+                        "Content-Type": "application/json"
+                    }
+                )
+                status_response.raise_for_status()
+                status_data = status_response.json()
+
+                output_url = status_data.get("body", {}).get("output")
+
+                if output_url:
+                    # Download and save the image locally
+                    image_data = requests.get(output_url).content
+                    with open(output_filename, "wb") as file:
+                        file.write(image_data)
+                    print(f"Image saved as: {output_filename}")
+                    return output_filename
+
+                time.sleep(5)  # Wait before retrying
+
+            print(f"Image generation failed for prompt: {prompt}")
+            return None
+
+        except Exception as e:
+            print(f"An error occurred while generating the image: {e}")
+            return None
